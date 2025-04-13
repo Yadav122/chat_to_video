@@ -1,0 +1,28 @@
+# Core dependencies
+streamlit>=1.28.0
+python-dotenv>=1.0.0
+pydantic>=2.4.2
+
+
+# Video processing
+pytube>=15.0.0
+opencv-python>=4.8.0
+moviepy==1.0.3
+imageio-ffmpeg==0.4.8
+pillow>=10.0.0
+
+# Audio processing
+librosa>=0.10.1
+pydub>=0.25.1
+whispercpp>=0.0.17
+
+
+# Embedding and vector DB
+torch>=2.0.0
+transformers>=4.34.0
+sentence-transformers>=2.2.2
+lancedb>=0.3.0
+
+# LLM integration
+llama-cpp-python>=0.2.0
+accelerate>=0.23.0
