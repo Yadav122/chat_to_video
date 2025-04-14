@@ -1,70 +1,85 @@
-"""Module for generating embeddings using BridgeTower."""
+"""Module for generating embeddings using Hugging Face API."""
 import os
-import torch
+import requests
 import numpy as np
-from PIL import Image
-from transformers import BridgeTowerProcessor, BridgeTowerModel
-
-from config import BRIDGETOWER_MODEL  # Make sure this is set to your model name/path
+import base64
 
 
 class EmbeddingGenerator:
     def __init__(self):
         # Get Hugging Face token from environment variable
-        hf_token = os.getenv("HF_TOKEN")
-        if not hf_token:
+        self.hf_token = os.getenv("HF_TOKEN")
+        if not self.hf_token:
             raise EnvironmentError("HF_TOKEN not found in environment variables")
 
-        # Load BridgeTower model and processor with authentication
-        self.processor = BridgeTowerProcessor.from_pretrained(BRIDGETOWER_MODEL, token=hf_token)
-        self.model = BridgeTowerModel.from_pretrained(BRIDGETOWER_MODEL, token=hf_token)
-
-        # Set device for inference
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.model.to(self.device)
+        # API headers
+        self.headers = {
+            "Authorization": f"Bearer {self.hf_token}"
+        }
 
     def _normalize(self, vector):
         """Normalize vector for similarity comparison."""
         return vector / np.linalg.norm(vector)
 
     def generate_text_embedding(self, text: str) -> np.ndarray:
-        """Generate embeddings for text."""
-        inputs = self.processor(text=text, return_tensors="pt").to(self.device)
-        with torch.no_grad():
-            outputs = self.model(**inputs)
+        """Generate embeddings for text using Hugging Face API."""
+        api_url = "https://api-inference.huggingface.co/models/sentence-transformers/all-MiniLM-L6-v2"
+        payload = {"inputs": text}
 
-        text_embeddings = outputs.text_embeds.cpu().numpy()
-        return self._normalize(text_embeddings[0])
+        response = requests.post(api_url, headers=self.headers, json=payload)
+        if response.status_code != 200:
+            raise Exception(f"API request failed with status code {response.status_code}: {response.text}")
+
+        # The API returns a list of embeddings, we take the first one
+        embedding = np.array(response.json())
+        return self._normalize(embedding[0])
 
     def generate_image_embedding(self, image_path: str) -> np.ndarray:
-        """Generate embeddings for image."""
+        """Generate embeddings for image using Hugging Face API."""
         try:
-            image = Image.open(image_path).convert("RGB")
+            # Open and encode the image
+            with open(image_path, "rb") as image_file:
+                image_bytes = image_file.read()
+                image_base64 = base64.b64encode(image_bytes).decode("utf-8")
         except Exception as e:
             print(f"Error opening image {image_path}: {e}")
             return None
 
-        inputs = self.processor(images=image, return_tensors="pt").to(self.device)
-        with torch.no_grad():
-            outputs = self.model(**inputs)
+        # Use CLIP for image embeddings
+        api_url = "https://api-inference.huggingface.co/models/openai/clip-vit-base-patch32"
+        payload = {"inputs": {"image": image_base64}}
 
-        image_embeddings = outputs.image_embeds.cpu().numpy()
-        return self._normalize(image_embeddings[0])
+        response = requests.post(api_url, headers=self.headers, json=payload)
+        if response.status_code != 200:
+            print(f"API request failed with status code {response.status_code}: {response.text}")
+            return None
+
+        embedding = np.array(response.json())
+        return self._normalize(embedding)
 
     def generate_multimodal_embedding(self, text: str, image_path: str) -> np.ndarray:
-        """Generate combined embedding for text and image."""
+        """Generate combined embedding for text and image using Hugging Face API."""
+        # For multimodal, we'll use CLIP which handles both text and images
         try:
-            image = Image.open(image_path).convert("RGB")
+            # Open and encode the image
+            with open(image_path, "rb") as image_file:
+                image_bytes = image_file.read()
+                image_base64 = base64.b64encode(image_bytes).decode("utf-8")
         except Exception as e:
             print(f"Error opening image {image_path}: {e}")
             return None
 
-        inputs = self.processor(text=text, images=image, return_tensors="pt").to(self.device)
-        with torch.no_grad():
-            outputs = self.model(**inputs)
+        api_url = "https://api-inference.huggingface.co/models/openai/clip-vit-base-patch32"
+        payload = {"inputs": {"text": text, "image": image_base64}}
 
-        multimodal_embeddings = outputs.pooler_output.cpu().numpy()
-        return self._normalize(multimodal_embeddings[0])
+        response = requests.post(api_url, headers=self.headers, json=payload)
+        if response.status_code != 200:
+            print(f"API request failed with status code {response.status_code}: {response.text}")
+            return None
+
+        # For multimodal, we'll average the text and image embeddings
+        embedding = np.array(response.json())
+        return self._normalize(embedding)
 
     def process_video_data(self, video_data: dict) -> list:
         """
