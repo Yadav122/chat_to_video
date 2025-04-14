@@ -9,6 +9,9 @@ from modules.embedding import EmbeddingGenerator
 from modules.indexing import VectorStore
 from modules.retrieval import RetrievalSystem
 from modules.llm import LLMProcessor
+from dotenv import load_dotenv
+load_dotenv()  # This loads environment variables from the .env file
+
 
 # Initialize the session state
 if "chat_history" not in st.session_state:
